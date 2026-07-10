@@ -1,0 +1,61 @@
+trigger: none
+
+pr:
+    branches:
+        include:
+            - main
+            - development
+    paths:
+        exclude:
+            - docs/*
+            - '**/*.md'
+
+
+pool:
+    vmImage: 'ubuntu-latest'
+
+
+variables:
+    - group: uk-ds-pr-review # holds ANTHROPIC_API_KEY
+    - name: PYTHON_VERSION
+      value: '3.11'
+
+
+
+Jobs:
+    - job: ClaudeReview
+      displayName: 'Claude PR Review'
+      condition: eq(variables['Build.Reason'], 'PullRequest')
+      timeoutInMinutes: 10
+      steps:
+        - checkout: self
+          fetchDepth: 0     # need full history for git diff
+          persistCredentials: true
+
+        - task: UsePythonVersion@0
+          inputs:
+            versionSpec: '$(PYTHON_VERSION)'
+        
+        - script: |
+            python -m pip install --upgrade pip
+            python -m pip install uv
+            uv sync --no-dev
+          displayName: 'Install dependencies'
+
+        
+        - script: uv run python .azure/scripts/run_review.py
+          displayName: 'Run Claude PR Review'
+          env:
+            ANTHROPIC_API_KEY: $(ANTHROPIC_API_KEY)
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+            SYSTEM_COLLECTIONURI: $(System.CollectionUri)
+            SYSTEM_TEAMPROJECT: $(System.TeamProject)
+            BUILD_REPOSITORY_ID: $(Build.Repository.ID)
+            BUILD_REPOSITORY_NAME: $(Build.Repository.Name)
+            SYSTEM_PULLREQUEST_PULLREQUESTID: $(System.PullRequest.PullRequestId)
+            SYSTEM_PULLREQUEST_SOURCECOMMITID: $(System.PullRequest.SourceCommitId)
+            SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
+
+            
+
+
